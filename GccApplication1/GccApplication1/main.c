@@ -15,6 +15,8 @@
 
 #include <avr/io.h>
 #include <stdio.h>
+#include "i2cmaster.h"
+#include "twimaster.c"
 
 
 void USART_Init(unsigned int ubrr){
@@ -53,12 +55,14 @@ static float read_adc(){
 	
 	
 	return 5.0f * (ADCL + (ADCH<<8)) / 1023.0f;
-	
-	//PRADC = 0x00;
-	//ADSC = 0x01;
-	
 }
+
 static FILE uart_io = FDEV_SETUP_STREAM(uart_putchar, uart_getchar, _FDEV_SETUP_RW);
+
+unsigned char convert_voltage(float v){
+	uint8_t val = v*51;
+	return val;
+}
 
 int main(void)
 {
@@ -70,27 +74,43 @@ int main(void)
 	ADMUX |= 0b01 << REFS0;
 	ADCSRA = 1 << ADEN | 0b111 << ADPS0;
 	
-	//UCSR0A = 1 << U2X0;
-	//UBRR0L = (F_CPU / (8UL * BAUD)) - 1;
-	//UCSR0B = 1 << TXEN0 
+	i2c_init();
 	
-	//unsigned char tmp;
-	//
-	//DDRC = 0x00;
-	//
-	//tmp = PINC
-	//tmp = tmp & (1 << 0)
-	//
-	//REFS1 = 0;
-	//REFS0 = 1;
+	unsigned char channel0 = 00000000;
+	unsigned char channel1 = 00000001;
+	unsigned char addr = 01011000;
+	unsigned char volt = 10000001;
 	
-	char c;
+	char c[20];
+	char command;
+	int channel, waveforms = 0;
+	float third = 0;
     while (1) 
     {
-		c = "";
-		c = scanf("%c", &c);
-		if(strcmp(c, "G")){
+		scanf("%19s", c);
+		sscanf(c, "%c,%d,%f,%d", &command, &channel, &third, &waveforms);
+		printf("%c , %d , %f , %d\n", command, channel, third, waveforms);
+		if(command == 'G'){
 			printf("v=%.3f\n", read_adc());
+		}
+		else if(command == 'S'){
+			printf("%d\n",convert_voltage(third));
+			int a = i2c_start(addr);
+			printf("start success?: %d\n", a);
+			if(channel == 1){
+				a = i2c_write(channel1);
+				printf("command write success?: %d\n", a);
+			} else {
+				a = i2c_write(channel0);
+				printf("command write success?: %d\n", a);
+			}
+			a = i2c_write(0xFF);
+			printf("write voltage success?:%d\n", a);
+			i2c_stop();
+			printf("after stop\n");
+		}
+		else if(command == 'W'){
+		
 		}
     }
 }
